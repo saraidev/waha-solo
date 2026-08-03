@@ -1,0 +1,5 @@
+.env
+.sessions/
+backups/
+*.tar.gz
+*.png
