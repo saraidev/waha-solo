@@ -1,0 +1,83 @@
+# ---------------------------------------------------------------------------
+# WAHA Plus — engine NOWEB
+# Droplet: DigitalOcean Basic Regular, 2 vCPU / 4 GB
+# Ubicacion en el servidor: /opt/waha/docker-compose.yaml
+# ---------------------------------------------------------------------------
+services:
+  waha:
+    image: devlikeapro/waha-plus:noweb
+    container_name: waha
+    restart: unless-stopped
+
+    # IMPORTANTE: escucha SOLO en la IP privada del VPC.
+    # Nunca 0.0.0.0. Reemplaza ${PRIVATE_IP} en el .env.
+    ports:
+      - "${PRIVATE_IP}:3000:3000"
+
+    # WAHA falla resolviendo servidores de WhatsApp con el DNS del host
+    dns:
+      - 1.1.1.1
+      - 8.8.8.8
+
+    # --- Limites duros: la mitigacion principal contra memory leaks ---
+    # Si WAHA infla, el contenedor muere y reinicia solo. Las sesiones
+    # viven en el volumen, asi que no se pierde la vinculacion.
+    mem_limit: 3g
+    mem_reservation: 1g
+    cpus: 2.0
+
+    environment:
+      # === Engine ===
+      WHATSAPP_DEFAULT_ENGINE: NOWEB
+
+      # Heap de Node ~= 70% del mem_limit.
+      # El default de Node son 16GB -> OOM garantizado sin esto.
+      NODE_OPTIONS: "--max-old-space-size=2048"
+
+      # === Version del protocolo de WhatsApp Web ===
+      # Vacio = usa la version incorporada en la imagen.
+      # Si WhatsApp deprecia esa version (sintoma: QR no vincula,
+      # error 405), pon aqui una version mas nueva sin esperar release.
+      # WAHA solo la usa si es SUPERIOR a la built-in.
+      WAHA_NOWEB_WA_VERSION: "${WA_VERSION:-}"
+      WAHA_NOWEB_WA_VERSION_FORCE: "False"
+
+      # === Sesiones ===
+      # Levanta todas las sesiones al arrancar el contenedor.
+      # Esto es lo que hace que un restart por OOM sea ~30s
+      # de downtime en vez de reescanear 50 QR.
+      WHATSAPP_RESTART_ALL_SESSIONS: "True"
+
+      # === Seguridad ===
+      WAHA_API_KEY: ${WAHA_API_KEY}
+      WAHA_DASHBOARD_USERNAME: ${DASH_USER}
+      WAHA_DASHBOARD_PASSWORD: ${DASH_PASS}
+      WHATSAPP_SWAGGER_ENABLED: "false"
+
+      # === Webhooks globales (default para sesiones sin config propia) ===
+      WHATSAPP_HOOK_URL: ${HOOK_URL}
+      WHATSAPP_HOOK_EVENTS: "message,session.status"
+
+      # === Media ===
+      # Solo descarga lo que realmente vas a procesar.
+      # Cada mimetype extra = disco + RAM.
+      WHATSAPP_FILES_MIMETYPES: "image/jpeg"
+
+      TZ: America/Mexico_City
+
+    volumes:
+      # Lo unico irreemplazable del servidor. Respaldar diario.
+      - ./.sessions:/app/.sessions
+
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:3000/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 90s
+
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
