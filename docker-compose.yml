@@ -27,12 +27,13 @@ services:
     cpus: 2.0
 
     environment:
+      WAHA_BASE_URL: ${WAHA_BASE_URL}
       # === Engine ===
       WHATSAPP_DEFAULT_ENGINE: NOWEB
 
       # Heap de Node ~= 70% del mem_limit.
       # El default de Node son 16GB -> OOM garantizado sin esto.
-      NODE_OPTIONS: "--max-old-space-size=2048"
+      NODE_OPTIONS: "--max-old-space-size=${NODE_HEAP_MB:-2048}"
 
       # === Version del protocolo de WhatsApp Web ===
       # Vacio = usa la version incorporada en la imagen.
@@ -61,10 +62,10 @@ services:
       # === Media ===
       # Solo descarga lo que realmente vas a procesar.
       # Cada mimetype extra = disco + RAM.
-      WHATSAPP_FILES_MIMETYPES: "image/jpeg"
+      WHATSAPP_FILES_MIMETYPES: "${FILES_MIMETYPES:-image/jpeg}"
 
-      TZ: America/Mexico_City
-
+      TZ: ${TZ:-America/Mexico_City}
+      
     volumes:
       # Lo unico irreemplazable del servidor. Respaldar diario.
       - ./.sessions:/app/.sessions
